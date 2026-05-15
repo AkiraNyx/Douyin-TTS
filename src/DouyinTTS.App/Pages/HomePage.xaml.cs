@@ -63,9 +63,30 @@ public sealed partial class HomePage : Page
 
     private async void ConnectButton_Click(object sender, RoutedEventArgs e)
     {
-        ViewModel.RoomInput = RoomInputBox.Text;
-        if (ViewModel.ConnectCommand.CanExecute(null))
+        var input = RoomInputBox.Text?.Trim();
+        if (string.IsNullOrEmpty(input))
+        {
+            StatusText.Text = "请输入房间号";
+            return;
+        }
+
+        ViewModel.RoomInput = input;
+        StatusText.Text = "连接中...";
+        ConnectButton.IsEnabled = false;
+
+        try
+        {
             await ViewModel.ConnectCommand.ExecuteAsync(null);
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = $"错误: {ex.Message}";
+        }
+        finally
+        {
+            if (!ViewModel.IsConnected)
+                ConnectButton.IsEnabled = true;
+        }
     }
 
     private async void DisconnectButton_Click(object sender, RoutedEventArgs e)
