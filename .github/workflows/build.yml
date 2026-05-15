@@ -12,6 +12,7 @@ env:
   DOTNET_VERSION: '8.0.x'
   SOLUTION_PATH: 'DouyinTTS.sln'
   APP_PROJECT: 'src/DouyinTTS.App/DouyinTTS.App.csproj'
+  CERT_PASSWORD: 'DouyinTTS2024'
 
 jobs:
   build:
@@ -29,11 +30,16 @@ jobs:
       with:
         dotnet-version: ${{ env.DOTNET_VERSION }}
 
-    - name: Decode certificate
+    - name: Decode and import certificate
       shell: pwsh
       run: |
         $pfxBytes = [Convert]::FromBase64String("${{ secrets.CERTIFICATE_BASE64 }}")
-        [IO.File]::WriteAllBytes("${{ github.workspace }}\src\DouyinTTS.App\DouyinTTS.pfx", $pfxBytes)
+        $pfxPath = "${{ github.workspace }}\src\DouyinTTS.App\DouyinTTS.pfx"
+        [IO.File]::WriteAllBytes($pfxPath, $pfxBytes)
+
+        $pwd = ConvertTo-SecureString -String '${{ env.CERT_PASSWORD }}' -Force -AsPlainText
+        Import-PfxCertificate -FilePath $pfxPath -CertStoreLocation 'Cert:\CurrentUser\My' -Password $pwd
+        Import-PfxCertificate -FilePath $pfxPath -CertStoreLocation 'Cert:\LocalMachine\TrustedPeople' -Password $pwd
 
     - name: Restore NuGet packages
       run: dotnet restore ${{ env.SOLUTION_PATH }}
