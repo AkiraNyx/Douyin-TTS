@@ -32,7 +32,7 @@ jobs:
     - name: Restore NuGet packages
       run: dotnet restore ${{ env.SOLUTION_PATH }}
 
-    - name: Build
+    - name: Build unsigned MSIX
       run: |
         dotnet build ${{ env.APP_PROJECT }} `
           --configuration Release `
@@ -40,6 +40,28 @@ jobs:
           -p:GenerateAppxPackageOnBuild=true `
           -p:AppxBundle=Never `
           -p:AppxPackageSigningEnabled=false
+
+    - name: Sign MSIX
+      shell: pwsh
+      run: |
+        $pfxBytes = [Convert]::FromBase64String("${{ secrets.CERTIFICATE_BASE64 }}")
+        $pfxPath = "${{ github.workspace }}\DouyinTTS.pfx"
+        [IO.File]::WriteAllBytes($pfxPath, $pfxBytes)
+
+        $msix = Get-ChildItem -Path "src\DouyinTTS.App\AppPackages" -Filter "*.msix" -Recurse | Select-Object -First 1
+        $signtool = Get-ChildItem -Path "${{ runner.temp }}\..\..\.nuget\packages\microsoft.windows.sdk.buildtools" -Recurse -Filter "signtool.exe" -ErrorAction SilentlyContinue | Where-Object { $_.FullName -match 'x64' } | Sort-Object FullName -Descending | Select-Object -First 1
+
+        if (-not $signtool) {
+          $signtool = Get-ChildItem -Path "C:\Users\runneradmin\.nuget\packages\microsoft.windows.sdk.buildtools" -Recurse -Filter "signtool.exe" -ErrorAction SilentlyContinue | Where-Object { $_.FullName -match 'x64' } | Sort-Object FullName -Descending | Select-Object -First 1
+        }
+
+        if ($signtool -and $msix) {
+          & $signtool.FullName sign /fd SHA256 /f $pfxPath /p "DouyinTTS2024" $msix.FullName
+        } else {
+          Write-Host "signtool: $($signtool.FullName)"
+          Write-Host "msix: $($msix.FullName)"
+          Write-Host "WARNING: Could not sign"
+        }
 
     - name: Upload MSIX artifact
       uses: actions/upload-artifact@v4
