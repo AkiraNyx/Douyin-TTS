@@ -33,7 +33,8 @@
             <TextBox
                 x:Name="RoomInputBox"
                 Grid.Column="0"
-                PlaceholderText="输入直播间号或分享链接..." />
+                PlaceholderText="输入直播间号或分享链接..."
+                Text="{x:Bind ViewModel.RoomInput, Mode=TwoWay}" />
 
             <Button
                 x:Name="ConnectButton"
