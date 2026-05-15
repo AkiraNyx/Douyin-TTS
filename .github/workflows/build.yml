@@ -34,9 +34,7 @@ jobs:
       shell: pwsh
       run: |
         $pfxBytes = [Convert]::FromBase64String("${{ secrets.CERTIFICATE_BASE64 }}")
-        $pfxPath = "${{ github.workspace }}\DouyinTTS.pfx"
-        [IO.File]::WriteAllBytes($pfxPath, $pfxBytes)
-        echo "PFX_PATH=$pfxPath" >> $env:GITHUB_ENV
+        [IO.File]::WriteAllBytes("${{ github.workspace }}\DouyinTTS.pfx", $pfxBytes)
 
     - name: Restore NuGet packages
       run: dotnet restore ${{ env.SOLUTION_PATH }}
@@ -55,11 +53,16 @@ jobs:
       run: |
         $msix = Get-ChildItem -Path "src\DouyinTTS.App\AppPackages" -Filter "*.msix" -Recurse | Select-Object -First 1
         if ($msix) {
-          $cert = Import-PfxCertificate -FilePath "${{ env.PFX_PATH }}" -CertStoreLocation 'Cert:\CurrentUser\My' -Password (ConvertTo-SecureString -String '${{ env.CERT_PASSWORD }}' -Force -AsPlainText)
-          & "C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64\signtool.exe" sign /sha1 $cert.Thumbprint /fd SHA256 $msix.FullName
-          Write-Host "Signed: $($msix.FullName)"
-        } else {
-          Write-Host "No MSIX found"
+          # Find signtool
+          $signtool = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin" -Recurse -Filter "signtool.exe" -ErrorAction SilentlyContinue | Where-Object { $_.FullName -match "x64" } | Select-Object -First 1
+          if (-not $signtool) {
+            $signtool = Get-Command signtool.exe -ErrorAction SilentlyContinue
+          }
+          if ($signtool) {
+            & $signtool.FullName sign /f "${{ github.workspace }}\DouyinTTS.pfx" /p "${{ env.CERT_PASSWORD }}" /fd SHA256 $msix.FullName
+          } else {
+            Write-Host "signtool not found, skipping signing"
+          }
         }
 
     - name: Upload MSIX artifact
