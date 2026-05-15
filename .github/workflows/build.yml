@@ -1,0 +1,75 @@
+name: Build MSIX
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  DOTNET_VERSION: '8.0.x'
+  SOLUTION_PATH: 'DouyinTTS.sln'
+  APP_PROJECT: 'src/DouyinTTS.App/DouyinTTS.App.csproj'
+
+jobs:
+  build:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        platform: [x64]
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Restore NuGet packages
+      run: dotnet restore ${{ env.SOLUTION_PATH }}
+
+    - name: Build
+      run: |
+        dotnet build ${{ env.APP_PROJECT }} `
+          --configuration Release `
+          --no-restore `
+          -p:GenerateAppxPackageOnBuild=true `
+          -p:AppxBundle=Never `
+          -p:AppxPackageSigningEnabled=false
+
+    - name: Upload MSIX artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: DouyinTTS-${{ matrix.platform }}
+        path: |
+          src/DouyinTTS.App/bin/**/Release/**/AppPackages/**/*.msix
+          src/DouyinTTS.App/bin/**/Release/**/AppPackages/**/*.appxbundle
+        if-no-files-found: warn
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+    - name: Download artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+
+    - name: List artifacts
+      run: Get-ChildItem -Recurse artifacts
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v2
+      with:
+        generate_release_notes: true
+        files: |
+          artifacts/**/*.msix
+          artifacts/**/*.appxbundle

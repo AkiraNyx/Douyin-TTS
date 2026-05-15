@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "DouyinTTS.App (Unpackaged)": {
+      "commandName": "Project",
+      "nativeDebugging": false
+    },
+    "DouyinTTS.App (Packaged)": {
+      "commandName": "MsixPackage",
+      "nativeDebugging": false
+    }
+  }
+}

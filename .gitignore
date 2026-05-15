@@ -1,0 +1,42 @@
+## .NET
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+*.user
+*.suo
+*.cache
+*.vs/
+.vs/
+
+## Build
+*.nupkg
+*.snupkg
+*.appxbundle
+*.msix
+*.appx
+AppPackages/
+
+## IDE
+.idea/
+*.sln.docstates
+*.rsuser
+
+## OS
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+
+## NuGet
+packages/
+*.nuget.props
+*.nuget.targets
+project.lock.json
+
+## User-specific
+*.rsuser
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
