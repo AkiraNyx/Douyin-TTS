@@ -12,9 +12,9 @@
     <WinUISDKReferences>false</WinUISDKReferences>
     <EnableMsixTooling>true</EnableMsixTooling>
     <DefaultLanguage>zh-CN</DefaultLanguage>
-    <AppxPackageSigningEnabled>true</AppxPackageSigningEnabled>
-    <PackageCertificateKeyFile>DouyinTTS.pfx</PackageCertificateKeyFile>
-    <PackageCertificatePassword>DouyinTTS2024</PackageCertificatePassword>
+    <AppxPackageSigningEnabled Condition="Exists('$(MSBuildProjectDirectory)\DouyinTTS.pfx')">true</AppxPackageSigningEnabled>
+    <PackageCertificateKeyFile Condition="Exists('$(MSBuildProjectDirectory)\DouyinTTS.pfx')">DouyinTTS.pfx</PackageCertificateKeyFile>
+    <PackageCertificatePassword Condition="Exists('$(MSBuildProjectDirectory)\DouyinTTS.pfx')">DouyinTTS2024</PackageCertificatePassword>
   </PropertyGroup>
 
   <ItemGroup>

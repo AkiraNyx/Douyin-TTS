@@ -30,16 +30,13 @@ jobs:
       with:
         dotnet-version: ${{ env.DOTNET_VERSION }}
 
-    - name: Decode and import certificate
+    - name: Decode certificate
       shell: pwsh
       run: |
         $pfxBytes = [Convert]::FromBase64String("${{ secrets.CERTIFICATE_BASE64 }}")
-        $pfxPath = "${{ github.workspace }}\src\DouyinTTS.App\DouyinTTS.pfx"
+        $pfxPath = "${{ github.workspace }}\DouyinTTS.pfx"
         [IO.File]::WriteAllBytes($pfxPath, $pfxBytes)
-
-        $pwd = ConvertTo-SecureString -String '${{ env.CERT_PASSWORD }}' -Force -AsPlainText
-        Import-PfxCertificate -FilePath $pfxPath -CertStoreLocation 'Cert:\CurrentUser\My' -Password $pwd
-        Import-PfxCertificate -FilePath $pfxPath -CertStoreLocation 'Cert:\LocalMachine\TrustedPeople' -Password $pwd
+        echo "PFX_PATH=$pfxPath" >> $env:GITHUB_ENV
 
     - name: Restore NuGet packages
       run: dotnet restore ${{ env.SOLUTION_PATH }}
@@ -50,7 +47,20 @@ jobs:
           --configuration Release `
           --no-restore `
           -p:GenerateAppxPackageOnBuild=true `
-          -p:AppxBundle=Never
+          -p:AppxBundle=Never `
+          -p:AppxPackageSigningEnabled=false
+
+    - name: Sign MSIX
+      shell: pwsh
+      run: |
+        $msix = Get-ChildItem -Path "src\DouyinTTS.App\AppPackages" -Filter "*.msix" -Recurse | Select-Object -First 1
+        if ($msix) {
+          $cert = Import-PfxCertificate -FilePath "${{ env.PFX_PATH }}" -CertStoreLocation 'Cert:\CurrentUser\My' -Password (ConvertTo-SecureString -String '${{ env.CERT_PASSWORD }}' -Force -AsPlainText)
+          & "C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64\signtool.exe" sign /sha1 $cert.Thumbprint /fd SHA256 $msix.FullName
+          Write-Host "Signed: $($msix.FullName)"
+        } else {
+          Write-Host "No MSIX found"
+        }
 
     - name: Upload MSIX artifact
       uses: actions/upload-artifact@v4
