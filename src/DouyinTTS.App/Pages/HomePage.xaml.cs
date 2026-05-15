@@ -61,6 +61,19 @@ public sealed partial class HomePage : Page
         ViewerCountText.Text = ViewModel.ViewerCount.ToString();
     }
 
+    private async void ConnectButton_Click(object sender, RoutedEventArgs e)
+    {
+        ViewModel.RoomInput = RoomInputBox.Text;
+        if (ViewModel.ConnectCommand.CanExecute(null))
+            await ViewModel.ConnectCommand.ExecuteAsync(null);
+    }
+
+    private async void DisconnectButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel.DisconnectCommand.CanExecute(null))
+            await ViewModel.DisconnectCommand.ExecuteAsync(null);
+    }
+
     private void Page_Unloaded(object sender, RoutedEventArgs e)
     {
         ViewModel.PropertyChanged -= ViewModel_PropertyChanged;

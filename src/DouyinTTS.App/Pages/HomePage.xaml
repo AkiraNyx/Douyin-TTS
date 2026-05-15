@@ -33,14 +33,13 @@
             <TextBox
                 x:Name="RoomInputBox"
                 Grid.Column="0"
-                PlaceholderText="输入直播间号或分享链接..."
-                Text="{x:Bind ViewModel.RoomInput, Mode=TwoWay}" />
+                PlaceholderText="输入直播间号或分享链接..." />
 
             <Button
                 x:Name="ConnectButton"
                 Grid.Column="1"
                 Style="{StaticResource AccentButtonStyle}"
-                Command="{x:Bind ViewModel.ConnectCommand}">
+                Click="ConnectButton_Click">
                 <StackPanel Orientation="Horizontal" Spacing="8">
                     <FontIcon Glyph="&#xE8F7;" FontSize="16" />
                     <TextBlock Text="连接" />
@@ -50,7 +49,7 @@
             <Button
                 x:Name="DisconnectButton"
                 Grid.Column="2"
-                Command="{x:Bind ViewModel.DisconnectCommand}"
+                Click="DisconnectButton_Click"
                 Visibility="Collapsed">
                 <StackPanel Orientation="Horizontal" Spacing="8">
                     <FontIcon Glyph="&#xE71A;" FontSize="16" />
