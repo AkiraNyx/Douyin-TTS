@@ -73,6 +73,7 @@ public sealed partial class HomePage : Page
         ViewModel.RoomInput = input;
         StatusText.Text = "连接中...";
         ConnectButton.IsEnabled = false;
+        RoomInputBox.IsEnabled = false;
 
         try
         {
@@ -82,10 +83,12 @@ public sealed partial class HomePage : Page
         {
             StatusText.Text = $"错误: {ex.Message}";
         }
-        finally
+
+        // 按钮状态由 PropertyChanged 回调更新
+        if (!ViewModel.IsConnected)
         {
-            if (!ViewModel.IsConnected)
-                ConnectButton.IsEnabled = true;
+            ConnectButton.IsEnabled = true;
+            RoomInputBox.IsEnabled = true;
         }
     }
 

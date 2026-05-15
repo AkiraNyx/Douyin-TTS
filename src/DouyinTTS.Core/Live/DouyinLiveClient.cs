@@ -41,7 +41,10 @@ public class DouyinLiveClient : IDisposable
         AutomaticDecompression = System.Net.DecompressionMethods.GZip
             | System.Net.DecompressionMethods.Deflate
             | System.Net.DecompressionMethods.Brotli
-    });
+    })
+    {
+        Timeout = TimeSpan.FromSeconds(15)
+    };
 
     static DouyinLiveClient()
     {
@@ -103,7 +106,7 @@ public class DouyinLiveClient : IDisposable
             return;
 
         SetState(ConnectionState.Connecting);
-        _cts = new CancellationTokenSource();
+        _cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
 
         try
         {
@@ -127,6 +130,12 @@ public class DouyinLiveClient : IDisposable
             // 启动接收和心跳任务
             _receiveTask = Task.Run(() => ReceiveLoopAsync(_cts.Token));
             _heartbeatTask = Task.Run(() => HeartbeatLoopAsync(_cts.Token));
+        }
+        catch (OperationCanceledException)
+        {
+            OnError?.Invoke("连接超时，请检查网络或房间号");
+            SetState(ConnectionState.Disconnected);
+            throw new TimeoutException("连接超时");
         }
         catch (Exception ex)
         {
