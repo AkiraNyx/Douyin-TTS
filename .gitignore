@@ -17,6 +17,9 @@ obj/
 *.appx
 AppPackages/
 
+## Certificate (contains private key)
+*.pfx
+
 ## IDE
 .idea/
 *.sln.docstates

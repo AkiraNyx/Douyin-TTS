@@ -29,6 +29,12 @@ jobs:
       with:
         dotnet-version: ${{ env.DOTNET_VERSION }}
 
+    - name: Decode certificate
+      shell: pwsh
+      run: |
+        $pfxBytes = [Convert]::FromBase64String("${{ secrets.CERTIFICATE_BASE64 }}")
+        [IO.File]::WriteAllBytes("${{ github.workspace }}\src\DouyinTTS.App\DouyinTTS.pfx", $pfxBytes)
+
     - name: Restore NuGet packages
       run: dotnet restore ${{ env.SOLUTION_PATH }}
 
@@ -38,8 +44,7 @@ jobs:
           --configuration Release `
           --no-restore `
           -p:GenerateAppxPackageOnBuild=true `
-          -p:AppxBundle=Never `
-          -p:AppxPackageSigningEnabled=false
+          -p:AppxBundle=Never
 
     - name: Upload MSIX artifact
       uses: actions/upload-artifact@v4
@@ -61,13 +66,8 @@ jobs:
       with:
         path: artifacts
 
-    - name: List artifacts
-      run: Get-ChildItem -Recurse artifacts
-
     - name: Create Release
       uses: softprops/action-gh-release@v2
       with:
         generate_release_notes: true
-        files: |
-          artifacts/**/*.msix
-          artifacts/**/*.appxbundle
+        files: artifacts/**/*.msix
