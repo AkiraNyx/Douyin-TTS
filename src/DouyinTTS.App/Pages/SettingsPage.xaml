@@ -5,154 +5,185 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    xmlns:toolkit="using:CommunityToolkit.WinUI.Controls"
     mc:Ignorable="d">
 
     <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <StackPanel Padding="24" Spacing="2" MaxWidth="800">
-            <TextBlock
-                Style="{StaticResource TitleTextBlockStyle}"
-                Text="设置"
-                Margin="0,0,0,24" />
+    <StackPanel Padding="24" Spacing="8">
+        <TextBlock Style="{StaticResource TitleTextBlockStyle}" Text="设置" Margin="0,0,0,16" />
 
-            <TextBlock
-                Style="{StaticResource BodyStrongTextBlockStyle}"
-                Text="语音设置"
-                Margin="0,0,0,12" />
+        <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="语音设置" Margin="0,0,0,8" />
 
-            <toolkit:SettingsCard
-                Header="语音选择"
-                Description="选择 TTS 播报使用的语音">
-                <toolkit:SettingsCard.HeaderIcon>
-                    <FontIcon Glyph="&#xE767;" />
-                </toolkit:SettingsCard.HeaderIcon>
-                <ComboBox
-                    x:Name="VoiceComboBox"
-                    MinWidth="200"
-                    HorizontalAlignment="Right" />
-            </toolkit:SettingsCard>
-
-            <toolkit:SettingsCard
-                Header="音量"
-                Description="调整语音播报音量">
-                <toolkit:SettingsCard.HeaderIcon>
-                    <FontIcon Glyph="&#xE767;" />
-                </toolkit:SettingsCard.HeaderIcon>
-                <Slider
-                    x:Name="VolumeSlider"
-                    Minimum="0"
-                    Maximum="200"
-                    Value="100"
-                    StepFrequency="10"
-                    Width="200"
-                    HorizontalAlignment="Right" />
-            </toolkit:SettingsCard>
-
-            <TextBlock
-                Style="{StaticResource BodyStrongTextBlockStyle}"
-                Text="播报设置"
-                Margin="0,24,0,12" />
-
-            <toolkit:SettingsExpander
-                Header="消息类型"
-                Description="选择需要语音播报的消息类型">
-                <toolkit:SettingsExpander.HeaderIcon>
-                    <FontIcon Glyph="&#xE8BD;" />
-                </toolkit:SettingsExpander.HeaderIcon>
-                <toolkit:SettingsExpander.Items>
-                    <toolkit:SettingsCard ContentAlignment="Left">
-                        <ToggleSwitch
-                            x:Name="DanmakuToggle"
-                            Header="弹幕消息"
-                            IsOn="True"
-                            OnContent="播报" OffContent="不播报" />
-                    </toolkit:SettingsCard>
-
-                    <toolkit:SettingsCard ContentAlignment="Left">
-                        <ToggleSwitch
-                            x:Name="GiftToggle"
-                            Header="礼物打赏"
-                            IsOn="True"
-                            OnContent="播报" OffContent="不播报" />
-                    </toolkit:SettingsCard>
-
-                    <toolkit:SettingsCard ContentAlignment="Left">
-                        <ToggleSwitch
-                            x:Name="MemberToggle"
-                            Header="用户进场"
-                            IsOn="False"
-                            OnContent="播报" OffContent="不播报" />
-                    </toolkit:SettingsCard>
-
-                    <toolkit:SettingsCard ContentAlignment="Left">
-                        <ToggleSwitch
-                            x:Name="LikeToggle"
-                            Header="点赞"
-                            IsOn="False"
-                            OnContent="播报" OffContent="不播报" />
-                    </toolkit:SettingsCard>
-                </toolkit:SettingsExpander.Items>
-            </toolkit:SettingsExpander>
-
-            <TextBlock
-                Style="{StaticResource BodyStrongTextBlockStyle}"
-                Text="过滤设置"
-                Margin="0,24,0,12" />
-
-            <toolkit:SettingsCard
-                Header="关键词过滤"
-                Description="包含以下关键词的消息不播报，用逗号分隔">
-                <toolkit:SettingsCard.HeaderIcon>
-                    <FontIcon Glyph="&#xE71E;" />
-                </toolkit:SettingsCard.HeaderIcon>
-                <TextBox
-                    x:Name="FilterKeywordsBox"
-                    PlaceholderText="关键词1, 关键词2, ..."
-                    MinWidth="200"
-                    HorizontalAlignment="Right" />
-            </toolkit:SettingsCard>
-
-            <toolkit:SettingsCard
-                Header="去重窗口"
-                Description="相同消息在指定秒数内不重复播报">
-                <toolkit:SettingsCard.HeaderIcon>
-                    <FontIcon Glyph="&#xE71C;" />
-                </toolkit:SettingsCard.HeaderIcon>
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <NumberBox
-                        x:Name="DedupeWindowBox"
-                        Minimum="0"
-                        Maximum="60"
-                        Value="3"
-                        SpinButtonPlacementMode="Inline"
-                        Width="100" />
-                    <TextBlock Text="秒" VerticalAlignment="Bottom" Margin="0,0,0,8" />
+        <!-- 语音选择 -->
+        <Border Padding="16,12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="4">
+            <Grid ColumnSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <FontIcon Grid.Column="0" Glyph="&#xE767;" VerticalAlignment="Center" />
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <TextBlock Text="语音选择" FontWeight="SemiBold" />
+                    <TextBlock Text="选择 TTS 播报使用的语音" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="12" />
                 </StackPanel>
-            </toolkit:SettingsCard>
+                <ComboBox x:Name="VoiceComboBox" Grid.Column="2" MinWidth="200" VerticalAlignment="Center" />
+            </Grid>
+        </Border>
 
-            <Button
-                Style="{StaticResource AccentButtonStyle}"
-                Content="保存设置"
-                Click="SaveButton_Click"
-                HorizontalAlignment="Right"
-                Margin="0,24,0,0" />
+        <!-- 音量 -->
+        <Border Padding="16,12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="4">
+            <Grid ColumnSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <FontIcon Grid.Column="0" Glyph="&#xE767;" VerticalAlignment="Center" />
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <TextBlock Text="音量" FontWeight="SemiBold" />
+                    <TextBlock Text="调整语音播报音量" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="12" />
+                </StackPanel>
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <Slider x:Name="VolumeSlider" Minimum="0" Maximum="200" Value="100" StepFrequency="10" Width="160" />
+                    <TextBlock x:Name="VolumeText" Text="100%" VerticalAlignment="Center" MinWidth="40" />
+                </StackPanel>
+            </Grid>
+        </Border>
 
-            <TextBlock
-                Style="{StaticResource BodyStrongTextBlockStyle}"
-                Text="关于"
-                Margin="0,48,0,12" />
+        <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="播报设置" Margin="0,16,0,8" />
 
-            <toolkit:SettingsCard
-                Header="DouyinTTS"
-                Description="抖音直播间弹幕播报软件 v1.0.0">
-                <toolkit:SettingsCard.HeaderIcon>
-                    <FontIcon Glyph="&#xE946;" />
-                </toolkit:SettingsCard.HeaderIcon>
-                <TextBlock
-                    Text="WinUI 3 + Fluent Design"
-                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                    VerticalAlignment="Center" />
-            </toolkit:SettingsCard>
-        </StackPanel>
+        <!-- 弹幕消息 -->
+        <Border Padding="16,12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="4">
+            <Grid ColumnSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <FontIcon Grid.Column="0" Glyph="&#xE8BD;" VerticalAlignment="Center" />
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <TextBlock Text="弹幕消息" FontWeight="SemiBold" />
+                    <TextBlock Text="接收并播报弹幕消息" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="12" />
+                </StackPanel>
+                <ToggleSwitch x:Name="DanmakuToggle" Grid.Column="2" IsOn="True" />
+            </Grid>
+        </Border>
+
+        <!-- 礼物打赏 -->
+        <Border Padding="16,12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="4">
+            <Grid ColumnSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <FontIcon Grid.Column="0" Glyph="&#xE719;" VerticalAlignment="Center" />
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <TextBlock Text="礼物打赏" FontWeight="SemiBold" />
+                    <TextBlock Text="接收并播报礼物打赏" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="12" />
+                </StackPanel>
+                <ToggleSwitch x:Name="GiftToggle" Grid.Column="2" IsOn="True" />
+            </Grid>
+        </Border>
+
+        <!-- 用户进场 -->
+        <Border Padding="16,12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="4">
+            <Grid ColumnSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <FontIcon Grid.Column="0" Glyph="&#xE77B;" VerticalAlignment="Center" />
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <TextBlock Text="用户进场" FontWeight="SemiBold" />
+                    <TextBlock Text="接收并播报用户进场消息" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="12" />
+                </StackPanel>
+                <ToggleSwitch x:Name="MemberToggle" Grid.Column="2" IsOn="False" />
+            </Grid>
+        </Border>
+
+        <!-- 点赞 -->
+        <Border Padding="16,12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="4">
+            <Grid ColumnSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <FontIcon Grid.Column="0" Glyph="&#xE8E1;" VerticalAlignment="Center" />
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <TextBlock Text="点赞" FontWeight="SemiBold" />
+                    <TextBlock Text="接收并播报点赞消息" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="12" />
+                </StackPanel>
+                <ToggleSwitch x:Name="LikeToggle" Grid.Column="2" IsOn="False" />
+            </Grid>
+        </Border>
+
+        <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="过滤设置" Margin="0,16,0,8" />
+
+        <!-- 关键词过滤 -->
+        <Border Padding="16,12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="4">
+            <Grid ColumnSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <FontIcon Grid.Column="0" Glyph="&#xE71E;" VerticalAlignment="Center" />
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <TextBlock Text="关键词过滤" FontWeight="SemiBold" />
+                    <TextBlock Text="包含以下关键词的消息不播报，用逗号分隔" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="12" />
+                </StackPanel>
+                <TextBox x:Name="FilterKeywordsBox" Grid.Column="2" PlaceholderText="关键词1, 关键词2, ..." MinWidth="200" VerticalAlignment="Center" />
+            </Grid>
+        </Border>
+
+        <!-- 去重窗口 -->
+        <Border Padding="16,12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="4">
+            <Grid ColumnSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <FontIcon Grid.Column="0" Glyph="&#xE71C;" VerticalAlignment="Center" />
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <TextBlock Text="去重窗口" FontWeight="SemiBold" />
+                    <TextBlock Text="相同消息在指定秒数内不重复播报" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="12" />
+                </StackPanel>
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <NumberBox x:Name="DedupeWindowBox" Minimum="0" Maximum="60" Value="3" Width="100" VerticalAlignment="Center" />
+                    <TextBlock Text="秒" VerticalAlignment="Center" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="调试" Margin="0,16,0,8" />
+
+        <!-- 调试模式 -->
+        <Border Padding="16,12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="4">
+            <Grid ColumnSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                    <TextBlock Text="调试模式" FontWeight="SemiBold" />
+                    <TextBlock Text="显示 WebSocket 诊断和解析错误信息" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="12" />
+                </StackPanel>
+                <ToggleSwitch x:Name="DebugModeToggle" Grid.Column="1" IsOn="False" />
+            </Grid>
+        </Border>
+    </StackPanel>
     </ScrollViewer>
 </Page>

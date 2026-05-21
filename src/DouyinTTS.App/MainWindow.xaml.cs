@@ -1,4 +1,6 @@
 using DouyinTTS.App.Pages;
+using Microsoft.UI;
+using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 
@@ -12,6 +14,13 @@ public sealed partial class MainWindow : Window
         Title = "DouyinTTS - 抖音弹幕播报";
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
+
+        // 设置默认窗口大小
+        var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+        var windowId = Win32Interop.GetWindowIdFromWindow(hwnd);
+        var appWindow = AppWindow.GetFromWindowId(windowId);
+        appWindow.Resize(new Windows.Graphics.SizeInt32 { Width = 900, Height = 640 });
+
         MainFrame.Navigate(typeof(HomePage));
         NavView.SelectedItem = NavHome;
     }

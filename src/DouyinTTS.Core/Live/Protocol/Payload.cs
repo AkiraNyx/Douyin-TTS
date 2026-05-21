@@ -13,9 +13,8 @@ public class PushFrame
     [ProtoMember(4)] public long Method { get; set; }
     [ProtoMember(5)] public HeadersList? HeadersList { get; set; }
     [ProtoMember(6)] public string PayloadEncoding { get; set; } = string.Empty;
-    [ProtoMember(7)] public byte[] Payload { get; set; } = [];
-    [ProtoMember(8)] public string? StatusMsg { get; set; }
-    [ProtoMember(9)] public int StatusCode { get; set; }
+    [ProtoMember(7)] public string PayloadType { get; set; } = string.Empty;
+    [ProtoMember(8)] public byte[] Payload { get; set; } = [];
 }
 
 [ProtoContract]
@@ -38,7 +37,7 @@ public class Response
     [ProtoMember(2)] public string Cursor { get; set; } = string.Empty;
     [ProtoMember(3)] public long FetchInterval { get; set; }
     [ProtoMember(4)] public long Now { get; set; }
-    [ProtoMember(5)] public int InternalExt { get; set; }
+    [ProtoMember(5)] public string InternalExt { get; set; } = string.Empty;
     [ProtoMember(6)] public int FetchType { get; set; }
     [ProtoMember(7)] public RouteParamsMap? RouteParams { get; set; }
     [ProtoMember(8)] public long HeartbeatDuration { get; set; }
@@ -78,9 +77,10 @@ public class Message
 public class ChatMessage
 {
     [ProtoMember(1)] public CommonInfo? Common { get; set; }
-    [ProtoMember(2)] public string Content { get; set; } = string.Empty;
-    [ProtoMember(3)] public long? Priority { get; set; }
-    [ProtoMember(4)] public long? Duration { get; set; }
+    [ProtoMember(2)] public UserInfo? User { get; set; }
+    [ProtoMember(3)] public string Content { get; set; } = string.Empty;
+    [ProtoMember(4)] public long? Priority { get; set; }
+    [ProtoMember(5)] public long? Duration { get; set; }
 }
 
 [ProtoContract]
@@ -223,4 +223,14 @@ public class WebcastRoomMessage
     [ProtoMember(1)] public CommonInfo? Common { get; set; }
     [ProtoMember(2)] public long? RoomId { get; set; }
     [ProtoMember(3)] public long? Status { get; set; }
+}
+
+[ProtoContract]
+public class SocialMessage
+{
+    [ProtoMember(1)] public CommonInfo? Common { get; set; }
+    [ProtoMember(2)] public UserInfo? User { get; set; }
+    [ProtoMember(3)] public long? ShareType { get; set; }
+    [ProtoMember(4)] public long? Action { get; set; }
+    [ProtoMember(5)] public string? ShareTarget { get; set; }
 }

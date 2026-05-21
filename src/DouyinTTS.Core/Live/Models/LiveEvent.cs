@@ -6,7 +6,8 @@ public enum LiveEventType
     Gift,
     Member,
     Like,
-    System
+    System,
+    Debug
 }
 
 public abstract class LiveEvent
@@ -40,10 +41,25 @@ public class LikeEvent : LiveEvent
 {
     public LikeEvent() => Type = LiveEventType.Like;
     public int Count { get; init; }
+    public int TotalLiked { get; init; }
 }
 
 public class SystemEvent : LiveEvent
 {
     public SystemEvent() => Type = LiveEventType.System;
     public string Message { get; init; } = string.Empty;
+}
+
+public class RoomStatsEvent : LiveEvent
+{
+    public RoomStatsEvent() => Type = LiveEventType.System;
+    public int ViewerCount { get; init; }
+}
+
+public class DebugEvent : LiveEvent
+{
+    public DebugEvent() => Type = LiveEventType.Debug;
+    public string Method { get; init; } = string.Empty;
+    public string? Error { get; init; }
+    public int PayloadSize { get; init; }
 }

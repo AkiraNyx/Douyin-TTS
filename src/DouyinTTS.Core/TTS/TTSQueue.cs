@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks.Dataflow;
 using Microsoft.Extensions.Logging;
 
@@ -25,13 +26,15 @@ public class TTSQueue : IDisposable
     private readonly EdgeTTSService _ttsService;
     private readonly ILogger? _logger;
     private readonly BufferBlock<(string text, string type)> _queue;
-    private readonly CancellationTokenSource _cts = new();
+    private CancellationTokenSource _cts = new();
     private Task? _processTask;
     private readonly ConcurrentDictionary<string, DateTime> _recentMessages = new();
     private TTSConfig _config;
+    private static readonly Regex EmojiRegex = new(@"\[.{1,10}\]", RegexOptions.Compiled);
 
     public event Action<byte[]>? OnAudioData;
     public event Action<string>? OnError;
+    public event Action<string>? OnDebug;
     public bool IsPlaying { get; private set; }
 
     public TTSQueue(EdgeTTSService ttsService, TTSConfig? config = null, ILogger? logger = null)
@@ -56,6 +59,10 @@ public class TTSQueue : IDisposable
     public bool EnqueueDanmaku(string userName, string content)
     {
         if (!_config.EnableDanmaku) return false;
+
+        // 过滤抖音表情 [捂脸] [大笑] 等
+        content = EmojiRegex.Replace(content, "").Trim();
+        if (string.IsNullOrWhiteSpace(content)) return false;
         if (!PassFilter(content)) return false;
 
         var text = $"{userName}说：{content}";
@@ -106,7 +113,10 @@ public class TTSQueue : IDisposable
         if (_recentMessages.TryGetValue(key, out var lastTime))
         {
             if ((now - lastTime).TotalSeconds < _config.DedupeWindowSeconds)
+            {
+                OnDebug?.Invoke($"[TTS] 去重: {text[..Math.Min(20, text.Length)]}");
                 return false;
+            }
         }
 
         _recentMessages[key] = now;
@@ -115,7 +125,9 @@ public class TTSQueue : IDisposable
         CleanupRecentMessages(now);
 
         // 尝试入队，队满时丢弃
-        return _queue.Post((text, type));
+        var posted = _queue.Post((text, type));
+        OnDebug?.Invoke($"[TTS] 入队{(posted ? "" : "失败(队满)")}: {text[..Math.Min(20, text.Length)]} 队列={_queue.Count}");
+        return posted;
     }
 
     private bool PassFilter(string content)
@@ -150,6 +162,7 @@ public class TTSQueue : IDisposable
     public void Start()
     {
         if (_processTask != null) return;
+        _cts = new CancellationTokenSource();
         _processTask = Task.Run(ProcessLoopAsync);
     }
 
@@ -160,8 +173,10 @@ public class TTSQueue : IDisposable
     {
         _cts.Cancel();
         if (_processTask != null)
+        {
             try { await _processTask; } catch { }
-        _processTask = null;
+            _processTask = null;
+        }
     }
 
     private async Task ProcessLoopAsync()
@@ -175,20 +190,35 @@ public class TTSQueue : IDisposable
                 try
                 {
                     IsPlaying = true;
+                    var preview = text[..Math.Min(30, text.Length)];
+                    OnDebug?.Invoke($"[TTS] 开始合成: {preview} 队列剩余={_queue.Count}");
+                    var sw = System.Diagnostics.Stopwatch.StartNew();
+
+                    using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token);
+                    timeoutCts.CancelAfter(TimeSpan.FromSeconds(30));
+
                     var audioData = await _ttsService.SynthesizeAsync(
                         text,
                         _config.VoiceName,
                         _config.Rate,
                         _config.Volume,
-                        _cts.Token);
+                        timeoutCts.Token);
+
+                    sw.Stop();
+                    OnDebug?.Invoke($"[TTS] 合成完成: {audioData.Length}B {sw.ElapsedMilliseconds}ms");
 
                     if (audioData.Length > 0)
                         OnAudioData?.Invoke(audioData);
                 }
+                catch (OperationCanceledException)
+                {
+                    OnError?.Invoke("[TTS] 合成超时 (30秒)");
+                    _ttsService.ResetConnection();
+                }
                 catch (Exception ex)
                 {
                     _logger?.LogWarning(ex, "TTS 播放失败: {Text}", text);
-                    OnError?.Invoke($"播放失败: {ex.Message}");
+                    OnError?.Invoke($"播放失败: [{ex.GetType().Name}] {ex.Message}");
                 }
                 finally
                 {
@@ -209,6 +239,8 @@ public class TTSQueue : IDisposable
     public void Dispose()
     {
         _cts.Cancel();
+        try { _processTask?.Wait(TimeSpan.FromSeconds(3)); } catch { }
+        _processTask = null;
         _cts.Dispose();
         GC.SuppressFinalize(this);
     }
