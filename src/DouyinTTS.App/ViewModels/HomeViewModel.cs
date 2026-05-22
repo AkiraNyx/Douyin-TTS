@@ -202,7 +202,7 @@ public partial class HomeViewModel : ObservableObject, IDisposable
                     MemberEvent => "进入直播间",
                     LikeEvent l => $"点了 {l.Count} 个赞",
                     SystemEvent s => s.Message,
-                    DebugEvent dbg => $"[{dbg.Method}] {dbg.PayloadSize}B{(dbg.Error != null ? $" {Truncate(dbg.Error, 80)}" : "")}",
+                    DebugEvent dbg => $"[{dbg.Method}] {dbg.PayloadSize}B{(dbg.Error != null ? $" {dbg.Error}" : "")}",
                     _ => string.Empty
                 },
                 Timestamp = evt.Timestamp.ToString("HH:mm:ss")

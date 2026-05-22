@@ -12,7 +12,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="Live\Protocol\sign.js" />
+    <EmbeddedResource Include="Live\Protocol\webmssdk.js" />
+    <EmbeddedResource Include="Live\Protocol\a_bogus.js" />
   </ItemGroup>
 
 </Project>

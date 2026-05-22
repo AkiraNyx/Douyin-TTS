@@ -28,21 +28,66 @@ public static class DouyinSignature
 
             _engine = new V8ScriptEngine();
 
-            // 注入 DOM 模拟
+            // 注入最小化浏览器环境（与 Goja 行为一致：缺少的 API 抛出错误，被 try-catch 捕获返回默认值）
+            // 关键：不提供 Image/indexedDB/DOMException/canvas context，让指纹收集返回与 Goja 相同的默认值
             var uaEscaped = userAgent.Replace("'", "\\'");
-            _engine.Execute($$"""
-                document = {};
-                window = {};
-                navigator = {'userAgent': '{{uaEscaped}}'};
-                """);
+            var browserMock = $@"
+                document = {{
+                    'cookie': '',
+                    'referrer': 'https://live.douyin.com/',
+                    'createElement': function() {{ return {{}}; }},
+                    'body': {{ 'clientWidth': 0, 'clientHeight': 0 }},
+                    'getElementsByTagName': function() {{ return []; }},
+                    'getElementById': function() {{ return null; }},
+                    'createEvent': function() {{ return {{ 'initEvent': function(){{}} }}; }},
+                    'addEventListener': function(){{}}
+                }};
+                window = {{
+                    'sessionStorage': null,
+                    'localStorage': null,
+                    'addEventListener': function(){{}},
+                    'location': {{ 'href': 'https://live.douyin.com/' }},
+                    'screen': {{ 'width': 1920, 'height': 1080 }}
+                }};
+                navigator = {{
+                    'userAgent': '{uaEscaped}',
+                    'platform': 'Win32',
+                    'language': 'zh-CN',
+                    'cookieEnabled': true
+                }};
+                self = this;
+                globalThis = this;
+            ";
+            _engine.Execute(browserMock);
 
-            // 加载 sign.js
+            // 加载 webmssdk.js（来自 douyinLive 项目，替代 byted_acrawler sign.js）
             var assembly = Assembly.GetExecutingAssembly();
-            using var stream = assembly.GetManifestResourceStream("DouyinTTS.Core.Live.Protocol.sign.js")
-                ?? throw new FileNotFoundException("sign.js embedded resource not found");
+            using var stream = assembly.GetManifestResourceStream("DouyinTTS.Core.Live.Protocol.webmssdk.js")
+                ?? throw new FileNotFoundException("webmssdk.js embedded resource not found");
             using var reader = new StreamReader(stream);
             var jsCode = reader.ReadToEnd();
             _engine.Execute(jsCode);
+
+            // 验证 get_sign 函数是否正常工作
+            try
+            {
+                var testResult = _engine.Invoke("get_sign", "test123");
+                var testSig = testResult?.ToString() ?? "";
+                System.Diagnostics.Debug.WriteLine($"[签名验证] get_sign('test123') = '{testSig}' (长度={testSig.Length})");
+                if (string.IsNullOrEmpty(testSig))
+                    System.Diagnostics.Debug.WriteLine("[签名验证] 警告: get_sign 返回空值，crawler 可能未正确初始化");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[签名验证] 错误: {ex.Message}");
+            }
+
+            // 加载 a_bogus.js（SM3 + RC4 独立实现）
+            using var abStream = assembly.GetManifestResourceStream("DouyinTTS.Core.Live.Protocol.a_bogus.js")
+                ?? throw new FileNotFoundException("a_bogus.js embedded resource not found");
+            using var abReader = new StreamReader(abStream);
+            var abCode = abReader.ReadToEnd();
+            _engine.Execute(abCode);
         }
     }
 
@@ -62,6 +107,37 @@ public static class DouyinSignature
     }
 
     /// <summary>
+    /// 生成 a_bogus 签名（用于 HTTP im/fetch 请求）
+    /// </summary>
+    public static string GetABogus(string queryParams, string userAgent)
+    {
+        lock (_lock)
+        {
+            if (_engine == null) return "";
+
+            try
+            {
+                // 转义参数中的单引号和反斜杠
+                var escapedParams = queryParams.Replace("\\", "\\\\").Replace("'", "\\'");
+                var escapedUA = userAgent.Replace("\\", "\\\\").Replace("'", "\\'");
+
+                // 构建 window_env_str（与 douyinLive 一致的浏览器环境指纹）
+                var envStr = "1920|1080|1920|1040|0|30|0|0|1872|92|1920|1040|1857|92|1|24|Win32";
+                var escapedEnv = envStr.Replace("'", "\\'");
+
+                // 调用 a_bogus.js 中的 generate_a_bogus 函数
+                var result = _engine.Evaluate($"generate_a_bogus('{escapedParams}', '{escapedUA}', '{escapedEnv}')")?.ToString();
+                return result ?? "";
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[ABogus] 计算失败: {ex.Message}");
+                return "";
+            }
+        }
+    }
+
+    /// <summary>
     /// 从 URL 查询参数中提取 13 个签名参数，计算 MD5
     /// </summary>
     public static string ComputeStub(string queryParams)
@@ -76,7 +152,8 @@ public static class DouyinSignature
         return Convert.ToHexString(hash).ToLower();
     }
 
-    public static string BuildWebSocketUrl(string roomId, string pushId, string userAgent, long fetchTime)
+    public static string BuildWebSocketUrl(string roomId, string pushId, string userAgent, long fetchTime,
+        string? realCursor = null, string? realInternalExt = null)
     {
         // douyinLive: browser_version = UA 去掉 "Mozilla" 前缀，空格编码为 %20
         var browserVersion = userAgent.StartsWith("Mozilla")
@@ -104,8 +181,9 @@ public static class DouyinSignature
         p.Add("browser_version", browserVersion);
         p.Add("browser_online", "true");
         p.Add("tz_name", "Asia/Shanghai");
-        p.Add("cursor", $"d-1_u-1_fh-{cursorFh}_t-{fetchTime}_r-1");
-        p.Add("internal_ext", $"internal_src:dim|wss_push_room_id:{roomId}|wss_push_did:{pushId}|first_req_ms:{fetchTime}|fetch_time:{fetchTime}|seq:1|wss_info:0-{fetchTime}-0-0|wrds_v:{wrdsV}");
+        // 使用与 douyinLive 一致的 cursor（硬编码旧时间戳）
+        p.Add("cursor", realCursor ?? $"d-1_u-1_fh-{cursorFh}_t-1719159695790_r-1");
+        p.Add("internal_ext", realInternalExt ?? $"internal_src:dim|wss_push_room_id:{roomId}|wss_push_did:{pushId}|first_req_ms:{fetchTime}|fetch_time:{fetchTime}|seq:1|wss_info:0-{fetchTime}-0-0|wrds_v:{wrdsV}");
         p.Add("host", "https://live.douyin.com");
         p.Add("aid", "6383");
         p.Add("live_id", "1");
@@ -126,6 +204,7 @@ public static class DouyinSignature
         // 使用真实签名
         var md5Stub = ComputeStub(queryParams);
         var signature = GetSignature(md5Stub);
+        System.Diagnostics.Debug.WriteLine($"[签名详情] md5Stub={md5Stub}, signature={signature}");
 
         var endpoint = "webcast5-ws-web-lf";
         return $"wss://{endpoint}.douyin.com/webcast/im/push/v2/?{queryParams}&signature={signature}";

@@ -34,6 +34,8 @@ public class DouyinLiveClient : IDisposable
     private DateTime _connectedAt = DateTime.MinValue;
     private const int IgnoreHistorySeconds = 5;
     private readonly HashSet<string> _seenMethods = new();
+    private string? _imCursor;
+    private string? _imInternalExt;
 
     private const string UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36";
 
@@ -90,6 +92,7 @@ public class DouyinLiveClient : IDisposable
             if (string.IsNullOrEmpty(_roomId))
                 throw new InvalidOperationException("无法获取直播间内部 ID，可能房间号无效或直播已结束");
 
+            await FetchRoomEnterDataAsync();
             await ConnectWebSocketAsync();
 
             SetState(ConnectionState.Connected);
@@ -331,6 +334,163 @@ public class DouyinLiveClient : IDisposable
         return null;
     }
 
+    /// <summary>
+    /// 通过 HTTP im/fetch 请求获取真实的 cursor 和 internalExt（dycast 方案）
+    /// </summary>
+    private async Task FetchImDataAsync()
+    {
+        try
+        {
+            // 初始化签名引擎（如果还没初始化）
+            await Task.Run(() => DouyinSignature.Initialize(UserAgent));
+
+            var msToken = GenerateMsToken();
+            var fetchTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
+            // 构建 im/fetch URL 参数（与 room/enter 保持一致的简单格式）
+            var queryParams = $"aid=6383&app_name=douyin_web" +
+                $"&browser_language=zh-CN&browser_name=Chrome" +
+                $"&browser_platform=Win32&browser_version=116.0.0.0" +
+                $"&device_platform=web" +
+                $"&live_id=1&room_id={_roomId}" +
+                $"&web_rid={_webRid}&msToken={msToken}";
+
+            // 计算 a_bogus 签名
+            var aBogus = DouyinSignature.GetABogus(queryParams, UserAgent);
+            var aBogusParam = !string.IsNullOrEmpty(aBogus) ? $"&a_bogus={aBogus}" : "";
+            var url = $"https://live.douyin.com/webcast/im/fetch/?{queryParams}{aBogusParam}";
+
+            OnEvent?.Invoke(new DebugEvent { Method = "ImFetchSign", PayloadSize = aBogus.Length, Error = $"a_bogus={aBogus}" });
+
+            var request = new HttpRequestMessage(HttpMethod.Get, url);
+            // 发送所有已收集的 cookie（ttwid + 页面 cookie + msToken）
+            _allCookies["msToken"] = msToken;
+            var cookieStr = string.Join("; ", _allCookies.Select(kv => $"{kv.Key}={kv.Value}"));
+            request.Headers.Add("Cookie", cookieStr);
+            request.Headers.Add("Referer", $"https://live.douyin.com/{_webRid}");
+            request.Headers.Add("Accept", "*/*");
+
+            OnEvent?.Invoke(new DebugEvent { Method = "ImFetchCookies", PayloadSize = _allCookies.Count, Error = cookieStr[..Math.Min(200, cookieStr.Length)] });
+
+            var response = await Http.SendAsync(request);
+            var data = await response.Content.ReadAsByteArrayAsync();
+
+            _logger?.LogInformation("im/fetch 响应: HTTP {Status}, {Len} 字节", response.StatusCode, data.Length);
+
+            // 输出响应前 200 字节用于调试
+            var preview = Convert.ToHexString(data[..Math.Min(200, data.Length)]);
+            OnEvent?.Invoke(new DebugEvent { Method = "ImFetch", PayloadSize = data.Length, Error = $"HTTP{(int)response.StatusCode} {data.Length}B head={preview}" });
+
+            if (data.Length < 10)
+            {
+                _logger?.LogWarning("im/fetch 响应太短，跳过");
+                return;
+            }
+
+            // 解析 protobuf 响应（PushFrame → gzip → Response）
+            var frame = DouyinProtoParser.DecodeFrame(data);
+            if (frame == null)
+            {
+                _logger?.LogWarning("im/fetch: 无法解码 PushFrame");
+                return;
+            }
+
+            var resp = new DouyinProtoParser().ParseResponse(frame);
+            if (resp == null)
+            {
+                _logger?.LogWarning("im/fetch: 无法解析 Response");
+                return;
+            }
+
+            _imCursor = resp.Cursor;
+            _imInternalExt = resp.InternalExt;
+
+            OnEvent?.Invoke(new DebugEvent
+            {
+                Method = "ImFetchResult",
+                PayloadSize = data.Length,
+                Error = $"cursor={(_imCursor?.Length > 0 ? _imCursor[..Math.Min(50, _imCursor.Length)] : "空")}, internalExt={(_imInternalExt?.Length > 0 ? _imInternalExt[..Math.Min(50, _imInternalExt.Length)] : "空")}, msgs={resp.MessagesList?.Count ?? 0}"
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(ex, "im/fetch 失败，将使用合成值");
+        }
+    }
+
+    /// <summary>
+    /// 调用 /webcast/room/web/enter/ API（与 douyinLive 一致，可能需要此步骤来启用礼物消息）
+    /// </summary>
+    private async Task FetchRoomEnterDataAsync()
+    {
+        try
+        {
+            await Task.Run(() => DouyinSignature.Initialize(UserAgent));
+
+            var msToken = GenerateMsToken();
+            var queryParams = $"aid=6383&app_name=douyin_web&live_id=1&device_platform=web" +
+                $"&language=zh-CN&browser_language=zh-CN" +
+                $"&browser_platform=Win32&browser_name=Chrome&browser_version=116.0.0.0" +
+                $"&web_rid={_webRid}&msToken={msToken}";
+
+            var aBogus = DouyinSignature.GetABogus(queryParams, UserAgent);
+            var aBogusParam = !string.IsNullOrEmpty(aBogus) ? $"&a_bogus={aBogus}" : "";
+            var url = $"https://live.douyin.com/webcast/room/web/enter/?{queryParams}{aBogusParam}";
+
+            var request = new HttpRequestMessage(HttpMethod.Get, url);
+            var cookieStr = string.Join("; ", _allCookies.Select(kv => $"{kv.Key}={kv.Value}"));
+            request.Headers.Add("Cookie", cookieStr);
+            request.Headers.Add("Referer", $"https://live.douyin.com/{_webRid}");
+
+            var response = await Http.SendAsync(request);
+            CollectCookies(response);
+            var data = await response.Content.ReadAsByteArrayAsync();
+
+            OnEvent?.Invoke(new DebugEvent
+            {
+                Method = "RoomEnter",
+                PayloadSize = data.Length,
+                Error = $"HTTP{(int)response.StatusCode} {data.Length}B"
+            });
+
+            if (data.Length > 10)
+            {
+                var text = System.Text.Encoding.UTF8.GetString(data);
+
+                // 提取 room_id
+                var roomMatch = System.Text.RegularExpressions.Regex.Match(text, @"""id_str""\s*:\s*""(\d+)""");
+                if (roomMatch.Success)
+                    _roomId = roomMatch.Groups[1].Value;
+
+                // 提取 push_id（user_unique_id，12-19位数字）
+                var pushMatches = System.Text.RegularExpressions.Regex.Matches(text, @"""user_unique_id""\s*:\s*""(\d{10,20})""");
+                if (pushMatches.Count > 0)
+                {
+                    // 使用最后一个匹配（通常是观众的，而不是房间主人的）
+                    _pushId = pushMatches[^1].Groups[1].Value;
+                    _logger?.LogInformation("从 room/enter 获取 push_id: {PushId} (共 {Count} 个匹配)", _pushId, pushMatches.Count);
+                }
+
+                _logger?.LogInformation("room/enter: room_id={RoomId}, push_id={PushId}", _roomId, _pushId);
+
+                // 输出关键字段用于调试
+                var titleMatch = System.Text.RegularExpressions.Regex.Match(text, @"""title""\s*:\s*""([^""]+)""");
+                var title = titleMatch.Success ? titleMatch.Groups[1].Value : "?";
+                OnEvent?.Invoke(new DebugEvent
+                {
+                    Method = "RoomEnterData",
+                    PayloadSize = data.Length,
+                    Error = $"room_id={_roomId}, push_id={_pushId}, title={title}"
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(ex, "room/enter 失败");
+            OnEvent?.Invoke(new DebugEvent { Method = "RoomEnter_ERR", PayloadSize = 0, Error = ex.Message });
+        }
+    }
+
     private async Task ConnectWebSocketAsync()
     {
         if (string.IsNullOrEmpty(_pushId))
@@ -350,14 +510,20 @@ public class DouyinLiveClient : IDisposable
             }
         });
 
+        // 验证签名引擎
+        var testSig = DouyinSignature.GetSignature("test123");
+        OnEvent?.Invoke(new DebugEvent { Method = "签名验证", PayloadSize = testSig.Length, Error = $"get_sign('test123')='{testSig}'" });
+
         var fetchTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        var wsUrl = DouyinSignature.BuildWebSocketUrl(_roomId, _pushId, UserAgent, fetchTime);
-        _logger?.LogInformation("WebSocket URL 长度: {Len}, room_id={RoomId}, push_id={PushId}", wsUrl.Length, _roomId, _pushId);
+        var wsUrl = DouyinSignature.BuildWebSocketUrl(_roomId, _pushId, UserAgent, fetchTime, _imCursor, _imInternalExt);
+        _logger?.LogInformation("WebSocket URL 长度: {Len}, room_id={RoomId}, push_id={PushId}, im_cursor={HasCursor}", wsUrl.Length, _roomId, _pushId, _imCursor != null);
         _logger?.LogInformation("WebSocket URL: {Url}", wsUrl);
 
         _webSocket = new ClientWebSocket();
         _webSocket.Options.SetRequestHeader("User-Agent", UserAgent);
-        _webSocket.Options.SetRequestHeader("Cookie", $"ttwid={_ttwid}");
+        // 只发送服务器返回的 cookie（与 douyinLive 一致，不添加伪造的 msToken/__ac_nonce）
+        var wsCookieStr = string.Join("; ", _allCookies.Select(kv => $"{kv.Key}={kv.Value}"));
+        _webSocket.Options.SetRequestHeader("Cookie", wsCookieStr);
         _webSocket.Options.KeepAliveInterval = TimeSpan.FromSeconds(10);
 
         await _webSocket.ConnectAsync(new Uri(wsUrl), _cts!.Token);
