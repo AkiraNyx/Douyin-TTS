@@ -7,13 +7,6 @@
   <ItemGroup>
     <PackageReference Include="protobuf-net" Version="3.2.30" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.2" />
-    <PackageReference Include="Microsoft.ClearScript.V8" Version="7.4.5" />
-    <PackageReference Include="Microsoft.ClearScript.V8.Native.win-x64" Version="7.4.5" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <EmbeddedResource Include="Live\Protocol\webmssdk.js" />
-    <EmbeddedResource Include="Live\Protocol\a_bogus.js" />
   </ItemGroup>
 
 </Project>

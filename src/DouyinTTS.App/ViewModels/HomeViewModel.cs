@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Text.RegularExpressions;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DouyinTTS.Core.Live;
@@ -6,6 +7,7 @@ using DouyinTTS.Core.Live.Models;
 using DouyinTTS.Core.TTS;
 using Microsoft.Extensions.Logging;
 using Microsoft.UI.Dispatching;
+using Microsoft.Web.WebView2.Core;
 using Windows.Media.Core;
 using Windows.Media.Playback;
 using Windows.Storage;
@@ -14,12 +16,18 @@ namespace DouyinTTS.App.ViewModels;
 
 public partial class HomeViewModel : ObservableObject, IDisposable
 {
-    private readonly DouyinLiveClient _liveClient;
+    private readonly DouyinWebViewClient _webViewClient;
     private readonly EdgeTTSService _ttsService;
     private readonly TTSQueue _ttsQueue;
     private readonly MediaPlayer _mediaPlayer;
     private readonly DispatcherQueue _dispatcher;
+    private CancellationTokenSource? _connectCts;
     private bool _debugMode;
+
+    /// <summary>
+    /// 由 HomePage 注入，用于获取已初始化的 CoreWebView2
+    /// </summary>
+    public Func<Task<CoreWebView2>>? GetCoreWebView2 { get; set; }
 
     [ObservableProperty]
     private string _roomInput = string.Empty;
@@ -92,7 +100,7 @@ public partial class HomeViewModel : ObservableObject, IDisposable
     public HomeViewModel(DispatcherQueue dispatcher)
     {
         _dispatcher = dispatcher;
-        _liveClient = new DouyinLiveClient(new DebugLogger());
+        _webViewClient = new DouyinWebViewClient(new DebugLogger());
         _ttsService = new EdgeTTSService();
         _ttsQueue = new TTSQueue(_ttsService);
         _mediaPlayer = new MediaPlayer { AutoPlay = false };
@@ -100,9 +108,9 @@ public partial class HomeViewModel : ObservableObject, IDisposable
 
         LoadSettings();
 
-        _liveClient.OnEvent += OnLiveEvent;
-        _liveClient.OnStateChanged += OnStateChanged;
-        _liveClient.OnError += OnError;
+        _webViewClient.OnEvent += OnLiveEvent;
+        _webViewClient.OnStateChanged += OnStateChanged;
+        _webViewClient.OnError += OnError;
         _ttsQueue.OnAudioData += OnAudioData;
         _ttsQueue.OnError += OnTtsError;
         _ttsQueue.OnDebug += OnTtsDebug;
@@ -139,17 +147,54 @@ public partial class HomeViewModel : ObservableObject, IDisposable
         if (IsConnected || string.IsNullOrWhiteSpace(RoomInput))
             return;
 
+        if (GetCoreWebView2 == null)
+        {
+            ConnectionStatus = "错误: WebView2 未初始化";
+            return;
+        }
+
+        _connectCts?.Dispose();
+        _connectCts = new CancellationTokenSource();
+
         try
         {
             ConnectionStatus = "连接中...";
             _ttsService.ResetConnection();
-            await _liveClient.ConnectAsync(RoomInput);
+
+            var coreWebView2 = await GetCoreWebView2();
+            var roomId = ExtractRoomId(RoomInput);
+            await _webViewClient.ConnectAsync(coreWebView2, roomId, _connectCts.Token);
             _ttsQueue.Start();
+        }
+        catch (OperationCanceledException)
+        {
+            ConnectionStatus = "连接已取消";
         }
         catch (Exception ex)
         {
             ConnectionStatus = $"连接失败: {ex.Message}";
         }
+    }
+
+    private static string ExtractRoomId(string input)
+    {
+        input = input.Trim();
+        if (long.TryParse(input, out _) && input.Length > 0)
+            return input;
+
+        var match = Regex.Match(input, @"live\.douyin\.com/(\d+)");
+        if (match.Success) return match.Groups[1].Value;
+
+        match = Regex.Match(input, @"douyin\.com/(\d+)");
+        if (match.Success) return match.Groups[1].Value;
+
+        return input;
+    }
+
+    [RelayCommand]
+    private void CancelConnect()
+    {
+        _connectCts?.Cancel();
     }
 
     [RelayCommand]
@@ -161,7 +206,7 @@ public partial class HomeViewModel : ObservableObject, IDisposable
             _ttsService.ResetConnection();
 
             if (IsConnected)
-                await _liveClient.DisconnectAsync();
+                await _webViewClient.DisconnectAsync();
         }
         catch (Exception ex)
         {
@@ -270,16 +315,10 @@ public partial class HomeViewModel : ObservableObject, IDisposable
             {
                 ConnectionState.Disconnected => "未连接",
                 ConnectionState.Connecting => "连接中...",
-                ConnectionState.Connected => $"已连接 (room_id: {_liveClient.DebugRoomId})",
+                ConnectionState.Connected => $"已连接 (room_id: {_webViewClient.DebugRoomId})",
                 ConnectionState.Reconnecting => "重连中...",
                 _ => "未知状态"
             };
-
-            if (state == ConnectionState.Connected && _liveClient.Room != null)
-            {
-                RoomTitle = _liveClient.Room.Title;
-                ViewerCount = _liveClient.Room.ViewerCount;
-            }
         });
     }
 
@@ -397,7 +436,9 @@ public partial class HomeViewModel : ObservableObject, IDisposable
 
     public void Dispose()
     {
-        _liveClient.Dispose();
+        _connectCts?.Cancel();
+        _connectCts?.Dispose();
+        _webViewClient.Dispose();
         _ttsService.Dispose();
         _ttsQueue.Dispose();
         _mediaPlayer.Dispose();
@@ -405,7 +446,22 @@ public partial class HomeViewModel : ObservableObject, IDisposable
         {
             try { File.Delete(_currentAudioFile); } catch { }
         }
+        CleanupTempFiles();
         GC.SuppressFinalize(this);
+    }
+
+    private static void CleanupTempFiles()
+    {
+        try
+        {
+            var tempDir = Path.GetTempPath();
+            var files = Directory.GetFiles(tempDir, "douyin_tts_*.mp3");
+            foreach (var file in files)
+            {
+                try { File.Delete(file); } catch { }
+            }
+        }
+        catch { }
     }
 }
 

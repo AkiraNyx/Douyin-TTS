@@ -9,12 +9,23 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Grid x:Name="AppTitleBar" Grid.Row="0" Height="32" />
+        <TitleBar
+            x:Name="AppTitleBar"
+            Grid.Row="0"
+            Height="48"
+            Title="DouyinTTS"
+            Subtitle="v1.0.0"
+            IsBackButtonVisible="False"
+            IsBackButtonEnabled="False"
+            BackRequested="AppTitleBar_BackRequested"
+            IsPaneToggleButtonVisible="True"
+            PaneToggleRequested="AppTitleBar_PaneToggleRequested" />
 
         <NavigationView
             x:Name="NavView"
             Grid.Row="1"
             IsBackButtonVisible="Collapsed"
+            IsPaneToggleButtonVisible="False"
             IsSettingsVisible="False"
             IsTitleBarAutoPaddingEnabled="False"
             SelectionChanged="NavView_SelectionChanged">

@@ -2,7 +2,6 @@ using DouyinTTS.Core.TTS;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Controls.Primitives;
 using Windows.Storage;
 
 namespace DouyinTTS.App.Pages;
@@ -18,6 +17,7 @@ public sealed partial class SettingsPage : Page
         {
             _dispatcher = DispatcherQueue.GetForCurrentThread();
             InitializeComponent();
+            AboutExpander.Description = $"v{typeof(App).Assembly.GetName().Version?.ToString(3) ?? "1.0.0"}";
             LoadSettings();
             _ = LoadVoicesAsync();
             AttachHandlers();
@@ -59,6 +59,18 @@ public sealed partial class SettingsPage : Page
         FilterKeywordsBox.Text = settings.Values["FilterKeywords"] as string ?? string.Empty;
         DedupeWindowBox.Value = settings.Values["DedupeWindowSeconds"] as int? ?? 3;
         DebugModeToggle.IsOn = settings.Values["DebugMode"] as bool? ?? false;
+
+        // 背景材质
+        var backdrop = settings.Values["BackdropType"] as string ?? "Mica";
+        for (int i = 0; i < BackdropComboBox.Items.Count; i++)
+        {
+            if (BackdropComboBox.Items[i] is ComboBoxItem item && item.Tag?.ToString() == backdrop)
+            {
+                BackdropComboBox.SelectedIndex = i;
+                break;
+            }
+        }
+
         _loading = false;
     }
 
@@ -96,6 +108,22 @@ public sealed partial class SettingsPage : Page
         settings.Values["FilterKeywords"] = FilterKeywordsBox.Text;
         settings.Values["DedupeWindowSeconds"] = (int)DedupeWindowBox.Value;
         settings.Values["DebugMode"] = DebugModeToggle.IsOn;
+
+        // 背景材质
+        if (BackdropComboBox.SelectedItem is ComboBoxItem backdropItem)
+        {
+            var backdropType = backdropItem.Tag?.ToString() ?? "Mica";
+            settings.Values["BackdropType"] = backdropType;
+            if (App.m_window is MainWindow mainWindow)
+                mainWindow.SetBackdrop(backdropType);
+        }
+
         App.ViewModel?.RefreshSettings();
     }
+
+    private void BackdropComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_loading) DeferredSave();
+    }
+
 }

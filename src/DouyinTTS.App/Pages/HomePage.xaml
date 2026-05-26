@@ -56,6 +56,17 @@
                     <TextBlock Text="断开" />
                 </StackPanel>
             </Button>
+
+            <Button
+                x:Name="CancelButton"
+                Grid.Column="2"
+                Click="CancelButton_Click"
+                Visibility="Collapsed">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <FontIcon Glyph="&#xE71A;" FontSize="16" />
+                    <TextBlock Text="取消" />
+                </StackPanel>
+            </Button>
         </Grid>
 
         <StackPanel
@@ -99,21 +110,59 @@
                     Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
             </StackPanel>
 
-            <ToggleSwitch
-                x:Name="DebugToggle"
-                Header="调试"
-                IsOn="{x:Bind ViewModel.DebugMode, Mode=TwoWay}"
-                OnContent="开" OffContent="关"
-                MinWidth="0"
-                HorizontalAlignment="Right" />
+            <Button
+                x:Name="ShowWebViewButton"
+                Padding="4,2" MinHeight="0" MinWidth="0"
+                Click="ShowWebViewButton_Click"
+                Visibility="Collapsed"
+                ToolTipService.ToolTip="显示 WebView">
+                <FontIcon Glyph="&#xE7C3;" FontSize="12" />
+            </Button>
         </StackPanel>
 
-        <Border Grid.Row="3"
-                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                BorderThickness="1"
-                CornerRadius="4"
-                Padding="2"
-                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+        <Grid Grid.Row="3">
+            <!-- WebView2 登录/验证码层 -->
+            <Grid x:Name="WebViewOverlay" Visibility="Collapsed" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <InfoBar x:Name="WebViewInfoBar" Grid.Row="0"
+                         IsOpen="True"
+                         IsIconVisible="True"
+                         IsClosable="False"
+                         Title="提示"
+                         Message="请在下方完成登录或验证码验证，完成后点击「隐藏窗口」按钮继续"
+                         Severity="Informational" />
+                <WebView2 x:Name="WebView" Grid.Row="1" />
+                <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="8" Padding="12,8"
+                            HorizontalAlignment="Center"
+                            Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}">
+                    <Button x:Name="HideWebViewButton" Style="{StaticResource AccentButtonStyle}"
+                            Click="HideWebViewButton_Click">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <FontIcon Glyph="&#xE73A;" FontSize="14" />
+                            <TextBlock Text="隐藏窗口" />
+                        </StackPanel>
+                    </Button>
+                    <Button x:Name="RefreshWebViewButton"
+                            Click="RefreshWebViewButton_Click">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <FontIcon Glyph="&#xE72C;" FontSize="14" />
+                            <TextBlock Text="刷新页面" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+            </Grid>
+
+            <!-- 消息列表层 -->
+            <Border x:Name="MessagePanel"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="4"
+                    Padding="2"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
@@ -199,7 +248,8 @@
                 </ListView.ItemTemplate>
             </ListView>
             </Grid>
-        </Border>
+            </Border>
+        </Grid>
 
         <Grid Grid.Row="4" ColumnSpacing="16">
             <Grid.ColumnDefinitions>

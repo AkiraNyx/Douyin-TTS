@@ -33,7 +33,19 @@ if ($old) {
 }
 
 Write-Host "=== 4. Install ===" -ForegroundColor Cyan
-Add-AppxPackage -Path $MsixPath -DependencyPath $DepPath
+try {
+    Add-AppxPackage -Path $MsixPath -DependencyPath $DepPath
+} catch {
+    if ($_.Exception.Message -match "0x80073D02") {
+        Write-Host "正在关闭冲突应用并重试..." -ForegroundColor Yellow
+        # 关闭所有可能冲突的 WinUI 应用
+        Get-Process | Where-Object { $_.ProcessName -match "WinUI|Gallery" } | Stop-Process -Force -ErrorAction SilentlyContinue
+        Start-Sleep -Seconds 3
+        Add-AppxPackage -Path $MsixPath -DependencyPath $DepPath
+    } else {
+        throw
+    }
+}
 
 Write-Host "=== Done ===" -ForegroundColor Green
 Start-Sleep -Seconds 2

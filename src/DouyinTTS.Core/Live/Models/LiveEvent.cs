@@ -1,5 +1,13 @@
 namespace DouyinTTS.Core.Live.Models;
 
+public enum ConnectionState
+{
+    Disconnected,
+    Connecting,
+    Connected,
+    Reconnecting
+}
+
 public enum LiveEventType
 {
     Danmaku,

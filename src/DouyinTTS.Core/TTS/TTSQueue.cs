@@ -77,7 +77,7 @@ public class TTSQueue : IDisposable
         if (!_config.EnableGift) return false;
 
         var text = count > 1
-            ? $"{userName}送出了{giftName}乘以{count}"
+            ? $"{userName}送出了{count}个{giftName}"
             : $"{userName}送出了{giftName}";
         return Enqueue(text, "gift");
     }

@@ -321,18 +321,14 @@ public class DouyinProtoParser
             try
             {
                 // WebcastGiftSortMessage 返回多个事件
-                if (msg.Method == "WebcastGiftSortMessage" && msg.Payload != null && msg.Payload.Length > 0)
+                if (msg.Method == "WebcastGiftSortMessage")
                 {
-                    var giftEvents = ParseGiftSortMessage(msg.Payload);
-                    if (giftEvents.Count > 0)
+                    var payloadLen = msg.Payload?.Length ?? 0;
+                    if (payloadLen > 0)
                     {
-                        _logger?.LogInformation("[GiftSort] 从 {Size}B payload 中提取了 {Count} 个礼物事件", msg.Payload.Length, giftEvents.Count);
-                        foreach (var ge in giftEvents.OfType<Models.GiftEvent>())
-                        {
-                            _logger?.LogInformation("[GiftSort] → {User} 送出 {Gift} x{Count}", ge.UserName, ge.GiftName, ge.GiftCount);
-                        }
+                        var giftEvents = ParseGiftSortMessage(msg.Payload!);
+                        events.AddRange(giftEvents);
                     }
-                    events.AddRange(giftEvents);
                     continue;
                 }
 
@@ -575,25 +571,7 @@ public class DouyinProtoParser
     {
         try
         {
-            var gift = ParseLightGiftMessage(data);
-
-            // 前 3 个输出详细 dump
-            if (_lightGiftDumpCount < 3)
-            {
-                _lightGiftDumpCount++;
-                var fields = ReadFields(data);
-                var fieldInfo = string.Join(", ", fields.Take(10).Select(f =>
-                    f.WireType == 0 ? $"f{f.FieldNumber}={f.AsInt64}" :
-                    f.WireType == 2 ? $"f{f.FieldNumber}[{f.Bytes?.Length ?? 0}B]" :
-                    $"f{f.FieldNumber}=wt{f.WireType}"));
-                return new Models.DebugEvent
-                {
-                    Method = "LightGift",
-                    PayloadSize = data.Length,
-                    Error = $"[{fieldInfo}] → {gift.UserName}:{gift.GiftName}x{gift.GiftCount}"
-                };
-            }
-            return gift;
+            return ParseLightGiftMessage(data);
         }
         catch (Exception ex)
         {
@@ -605,8 +583,6 @@ public class DouyinProtoParser
             };
         }
     }
-
-    private int _lightGiftDumpCount = 0;
 
     private Models.GiftEvent ParseLightGiftMessage(byte[] data)
     {
@@ -669,16 +645,37 @@ public class DouyinProtoParser
         var events = new List<Models.LiveEvent>();
         var fields = ReadFields(data);
 
-        // WebcastGiftSortMessage 结构：field 1=common, field 2=排序类型, field 3=礼物列表(repeated)
-        // 也可能在 field 4 或其他字段，尝试多个位置
-        for (int listField = 1; listField <= 6; listField++)
+        // 策略1: 尝试用 GiftMessage 的字段结构直接解析
+        // GiftMessage: User=field7, GiftStruct=field15(name=field16), repeatCount=field5, groupCount=field4
+        // WebcastGiftSortMessage 可能与 GiftMessage 共享相同结构
+        var directResult = TryParseAsGiftMessage(fields, data);
+        if (directResult != null)
         {
-            var giftListFields = ReadSubMessages(fields, listField);
-            if (giftListFields.Count == 0) continue;
+            events.Add(directResult);
+            return events;
+        }
 
-            foreach (var giftFields in giftListFields)
+        // 策略2: 尝试将每个顶层子消息作为 GiftMessage 解析
+        // (GiftSortMessage 可能是一个 repeated GiftMessage 容器)
+        int giftEventCount = 0;
+        for (int listField = 1; listField <= 10; listField++)
+        {
+            var subMsgs = ReadSubMessages(fields, listField);
+            if (subMsgs.Count == 0) continue;
+
+            foreach (var subFields in subMsgs)
             {
-                var (userId, userName, giftName, giftCount) = ExtractGiftFromFields(giftFields);
+                // 先尝试作为 GiftMessage 解析
+                var subResult = TryParseAsGiftMessage(subFields, null);
+                if (subResult != null)
+                {
+                    events.Add(subResult);
+                    giftEventCount++;
+                    continue;
+                }
+
+                // 启发式解析
+                var (userId, userName, giftName, giftCount) = ExtractGiftFromFields(subFields);
                 if (!string.IsNullOrEmpty(userName) && !string.IsNullOrEmpty(giftName))
                 {
                     events.Add(new Models.GiftEvent
@@ -689,17 +686,55 @@ public class DouyinProtoParser
                         GiftCount = giftCount,
                         GiftValue = 0
                     });
+                    giftEventCount++;
                 }
             }
         }
 
-        // 如果列表解析没有结果，深度搜索所有嵌套子消息
-        if (events.Count == 0)
+        // 策略3: 深度搜索
+        if (giftEventCount == 0)
         {
             DeepSearchGifts(fields, events, 0);
         }
 
         return events;
+    }
+
+    /// <summary>
+    /// 尝试用 GiftMessage 的字段结构解析（User=field7, GiftStruct=field15）
+    /// </summary>
+    private static Models.GiftEvent? TryParseAsGiftMessage(List<ProtoField> fields, byte[]? rawData)
+    {
+        // 检查是否有 GiftMessage 的标志性字段组合
+        var userFields = ReadSubMessage(fields, 7);
+        var giftStructFields = ReadSubMessage(fields, 15);
+
+        var userId = GetInt64(userFields, 1);
+        var userName = GetString(userFields, 3);
+        var giftName = GetString(giftStructFields, 16);
+        var giftId = GetInt64(giftStructFields, 5);
+
+        // 需要至少有用户名或礼物名才算有效
+        bool hasUser = userId > 0 && !string.IsNullOrEmpty(userName);
+        bool hasGift = giftId > 0 && !string.IsNullOrEmpty(giftName);
+
+        if (!hasUser && !hasGift)
+            return null;
+
+        if (string.IsNullOrEmpty(giftName)) giftName = "礼物";
+        if (string.IsNullOrEmpty(userName)) userName = "观众";
+
+        var groupCount = GetInt64(fields, 4, 1);
+        var repeatCount = GetInt64(fields, 5, 1);
+
+        return new Models.GiftEvent
+        {
+            UserId = userId.ToString(),
+            UserName = userName,
+            GiftName = giftName,
+            GiftCount = (int)(groupCount > 0 ? groupCount : repeatCount),
+            GiftValue = GetInt64(fields, 3)
+        };
     }
 
     private static (string userId, string userName, string giftName, int giftCount) ExtractGiftFromFields(List<ProtoField> giftFields)
@@ -727,6 +762,14 @@ public class DouyinProtoParser
                         userName = name;
                     }
 
+                    // 检查是否是 GiftStruct（field 5=id, field 16=name）
+                    var gsId = GetInt64(subFields, 5);
+                    var gsName = GetString(subFields, 16);
+                    if (gsId > 0 && !string.IsNullOrEmpty(gsName) && string.IsNullOrEmpty(giftName))
+                    {
+                        giftName = gsName;
+                    }
+
                     // 递归检查更深层的嵌套（GiftSort 的子消息可能包含 gift 详情）
                     foreach (var sf in subFields)
                     {
@@ -741,6 +784,13 @@ public class DouyinProtoParser
                                 {
                                     userId = innerId.ToString();
                                     userName = innerName;
+                                }
+                                // GiftStruct（field 5=id, field 16=name）
+                                var igId = GetInt64(innerFields, 5);
+                                var igName = GetString(innerFields, 16);
+                                if (igId > 0 && !string.IsNullOrEmpty(igName) && string.IsNullOrEmpty(giftName))
+                                {
+                                    giftName = igName;
                                 }
                                 // 查找礼物名称（通常在字符串字段中）
                                 var innerStr = GetString(innerFields, 2);
@@ -792,33 +842,67 @@ public class DouyinProtoParser
             try
             {
                 var subFields = ReadFields(f.Bytes);
-                // 检查这个子消息是否有 User 结构（field 1=long id, field 3=string name）
+
+                // 检查是否有 User 结构（field 1=id, field 3=nickname）
                 var id = GetInt64(subFields, 1);
                 var name = GetString(subFields, 3);
-                if (id > 10000 && !string.IsNullOrEmpty(name) && name.Length < 30 && name.Length > 0)
+                var hasUser = id > 10000 && !string.IsNullOrEmpty(name) && name.Length < 30;
+
+                // 检查是否有 GiftStruct（field 5=id, field 16=name）
+                var gsId = GetInt64(subFields, 5);
+                var gsName = GetString(subFields, 16);
+                var hasGiftStruct = gsId > 0 && !string.IsNullOrEmpty(gsName);
+
+                if (hasUser)
                 {
-                    // 找到用户信息，尝试在同一层级找礼物名称
-                    var gfName = "";
-                    foreach (var sf in subFields)
+                    // 找到用户信息
+                    var gfName = hasGiftStruct ? gsName : "";
+
+                    // 如果没有 GiftStruct，尝试在同层找礼物名称
+                    if (string.IsNullOrEmpty(gfName))
                     {
-                        if (sf.WireType == 2 && sf.Bytes != null && sf.FieldNumber != 3)
+                        foreach (var sf in subFields)
                         {
-                            var str = sf.AsString;
-                            if (!string.IsNullOrEmpty(str) && str.Length > 0 && str.Length < 30 &&
-                                !str.StartsWith("Webcast") && !str.StartsWith("http") &&
-                                !str.Contains('\0') && str != name)
+                            if (sf.WireType == 2 && sf.Bytes != null && sf.FieldNumber != 3)
                             {
-                                gfName = str;
-                                break;
+                                try
+                                {
+                                    var innerFields = ReadFields(sf.Bytes);
+                                    var igName = GetString(innerFields, 16);
+                                    if (!string.IsNullOrEmpty(igName))
+                                    {
+                                        gfName = igName;
+                                        break;
+                                    }
+                                }
+                                catch { }
+
+                                var str = sf.AsString;
+                                if (string.IsNullOrEmpty(gfName) && !string.IsNullOrEmpty(str) && str.Length > 0 && str.Length < 30 &&
+                                    !str.StartsWith("Webcast") && !str.StartsWith("http") &&
+                                    !str.Contains('\0') && str != name)
+                                {
+                                    gfName = str;
+                                }
                             }
                         }
                     }
+
                     if (string.IsNullOrEmpty(gfName)) gfName = "礼物";
                     events.Add(new Models.GiftEvent
                     {
                         UserId = id.ToString(),
                         UserName = name,
                         GiftName = gfName,
+                        GiftCount = 1,
+                        GiftValue = 0
+                    });
+                }
+                else if (hasGiftStruct)
+                {
+                    events.Add(new Models.GiftEvent
+                    {
+                        GiftName = gsName,
                         GiftCount = 1,
                         GiftValue = 0
                     });
