@@ -486,11 +486,11 @@ public class DouyinProtoParser
         // 必须全部是可打印字符：ASCII 可见字符、中文、全角字符
         foreach (var c in text)
         {
-            if (!(c >= ' ' && c < 0x7F ||    // ASCII 可见
-                  c >= 0x4E00 && c <= 0x9FFF || // CJK 统一汉字
-                  c >= 0x3000 && c <= 0x303F || // CJK 标点
-                  c >= 0xFF00 && c <= 0xFFEF || // 全角字符
-                  c >= 0x2000 && c <= 0x206F || // 通用标点
+            if (!((c >= ' ' && c < 0x7F) ||       // ASCII 可见
+                  (c >= 0x4E00 && c <= 0x9FFF) || // CJK 统一汉字
+                  (c >= 0x3000 && c <= 0x303F) || // CJK 标点
+                  (c >= 0xFF00 && c <= 0xFFEF) || // 全角字符
+                  (c >= 0x2000 && c <= 0x206F) || // 通用标点
                   c == '\r' || c == '\n' || c == '\t'))
                 return false;
         }
@@ -501,7 +501,11 @@ public class DouyinProtoParser
     {
         if (string.IsNullOrEmpty(text)) return text;
         // 移除不可打印字符，只保留可读文本
-        var cleaned = new string(text.Where(c => c >= ' ' && c < 0x7F || c >= 0x4E00 && c <= 0x9FFF || c >= 0x3000 && c <= 0x303F || c >= 0xFF00 && c <= 0xFFEF).ToArray());
+        var cleaned = new string(text.Where(c =>
+            (c >= ' ' && c < 0x7F) ||
+            (c >= 0x4E00 && c <= 0x9FFF) ||
+            (c >= 0x3000 && c <= 0x303F) ||
+            (c >= 0xFF00 && c <= 0xFFEF)).ToArray());
         // 如果清理后太短，可能是误解析
         if (cleaned.Length < 2) return string.Empty;
         // 限制长度
@@ -1046,6 +1050,8 @@ public class DouyinProtoParser
         using var gzip = new System.IO.Compression.GZipStream(input, System.IO.Compression.CompressionMode.Decompress);
         using var output = new MemoryStream();
         gzip.CopyTo(output);
+        if (output.Length > 10 * 1024 * 1024)
+            throw new InvalidOperationException($"Gzip 解压后数据过大: {output.Length} bytes");
         return output.ToArray();
     }
 

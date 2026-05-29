@@ -87,11 +87,6 @@ public sealed partial class MainWindow : Window
         UpdateTitleBarBackButton();
     }
 
-    private void AppTitleBar_PaneToggleRequested(TitleBar sender, object args)
-    {
-        NavView.IsPaneOpen = !NavView.IsPaneOpen;
-    }
-
     private void UpdateTitleBarBackButton()
     {
         AppTitleBar.IsBackButtonEnabled = MainFrame.CanGoBack;

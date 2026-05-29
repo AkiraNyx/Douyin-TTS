@@ -174,7 +174,8 @@ public class TTSQueue : IDisposable
         _cts.Cancel();
         if (_processTask != null)
         {
-            try { await _processTask; } catch { }
+            try { await _processTask; }
+            catch (OperationCanceledException) { }
             _processTask = null;
         }
     }
@@ -239,7 +240,11 @@ public class TTSQueue : IDisposable
     public void Dispose()
     {
         _cts.Cancel();
-        try { _processTask?.Wait(TimeSpan.FromSeconds(3)); } catch { }
+        if (_processTask is { IsCompleted: false })
+        {
+            try { _processTask.Wait(TimeSpan.FromSeconds(3)); }
+            catch (AggregateException) { } // 仅忽略取消导致的异常
+        }
         _processTask = null;
         _cts.Dispose();
         GC.SuppressFinalize(this);

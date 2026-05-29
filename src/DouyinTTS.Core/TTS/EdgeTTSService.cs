@@ -100,7 +100,8 @@ public class EdgeTTSService : IDisposable
 
         try
         {
-            await _webSocket.ConnectAsync(new Uri(url), CancellationToken.None);
+            using var connectCts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+            await _webSocket.ConnectAsync(new Uri(url), connectCts.Token);
         }
         catch (WebSocketException ex)
         {

@@ -17,7 +17,7 @@ public class DouyinWebViewClient : IDisposable
     private DateTime _connectedAt = DateTime.MinValue;
     private TaskCompletionSource<bool>? _connectTcs;
     private static readonly TimeSpan ConnectTimeout = TimeSpan.FromSeconds(120);
-    private bool _connected;
+    private volatile bool _connected;
 
     public ConnectionState State { get; private set; } = ConnectionState.Disconnected;
     public string RoomId { get; private set; } = string.Empty;

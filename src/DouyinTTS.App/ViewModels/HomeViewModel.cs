@@ -105,6 +105,7 @@ public partial class HomeViewModel : ObservableObject, IDisposable
         _ttsQueue = new TTSQueue(_ttsService);
         _mediaPlayer = new MediaPlayer { AutoPlay = false };
         _mediaPlayer.MediaEnded += (_, _) => _dispatcher.TryEnqueue(PlayNextFromQueue);
+        _mediaPlayer.MediaFailed += (_, _) => _dispatcher.TryEnqueue(PlayNextFromQueue);
 
         LoadSettings();
 
@@ -393,10 +394,12 @@ public partial class HomeViewModel : ObservableObject, IDisposable
                 _isPlaying = true;
                 var audioData = _audioQueue.Dequeue();
 
-                // 清理上一个临时文件
-                if (_currentAudioFile != null)
+                // 先释放旧 Source 的文件句柄，再删除临时文件
+                var oldFile = _currentAudioFile;
+                _mediaPlayer.Source = null;
+                if (oldFile != null)
                 {
-                    try { File.Delete(_currentAudioFile); } catch { }
+                    try { File.Delete(oldFile); } catch { }
                 }
 
                 // 写入临时文件
@@ -407,7 +410,7 @@ public partial class HomeViewModel : ObservableObject, IDisposable
                 // 播放
                 _mediaPlayer.Source = MediaSource.CreateFromUri(new Uri($"file:///{tempFile}"));
                 _mediaPlayer.Play();
-                return; // 播放成功，等 MediaEnded 回调
+                return; // 播放成功，等 MediaEnded/MediaFailed 回调
             }
             catch (Exception ex)
             {
