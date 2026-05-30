@@ -41,4 +41,4 @@ Push 到 `main` 分支或创建 `v*` tag 时自动构建 MSIX 安装包。
 
 ## 许可证
 
-MIT License
+[GPL-3.0](LICENSE)
